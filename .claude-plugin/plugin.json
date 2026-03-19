@@ -1,0 +1,20 @@
+{
+  "name": "ml-training-window-assessor",
+  "description": "Assess whether an ML training window can be extended by adding a new data source. Covers per-output label validity, lookforward bridging, drift-aware validation (PSI, feature-outcome stability), purged temporal cross-validation with embargo, bang-bang optimality under concept drift, and companion model vs extended training architecture decisions.",
+  "version": "2.0.0",
+  "author": {
+    "name": "Huiyan Wan"
+  },
+  "repository": "https://github.com/wan-huiyan/ml-training-window-assessor",
+  "license": "MIT",
+  "keywords": [
+    "ml",
+    "training-window",
+    "temporal-validation",
+    "concept-drift",
+    "purged-cv",
+    "data-science",
+    "xgboost",
+    "feature-engineering"
+  ]
+}
