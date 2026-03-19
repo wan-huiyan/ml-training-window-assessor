@@ -1,0 +1,14 @@
+{
+  "name": "ml-training-window-assessor",
+  "owner": {
+    "name": "Huiyan Wan"
+  },
+  "plugins": [
+    {
+      "name": "ml-training-window-assessor",
+      "source": ".",
+      "description": "Drift-aware training window extension assessment for production ML pipelines.",
+      "version": "2.0.0"
+    }
+  ]
+}

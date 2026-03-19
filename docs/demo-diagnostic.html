@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Training Window Assessor — Demo Output</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg-deep: #0a0e1a;
+    --bg-panel: #0f1422;
+    --bg-panel-inner: #131928;
+    --border-dim: #1e2740;
+    --border-glow: #2a3a5c;
+    --text-primary: #c8d6e5;
+    --text-secondary: #7f8fa6;
+    --text-dim: #4a5568;
+    --green-bright: #00e676;
+    --green-dim: #1b5e20;
+    --green-glow: rgba(0, 230, 118, 0.08);
+    --amber-bright: #ffc107;
+    --amber-dim: #5d4037;
+    --amber-glow: rgba(255, 193, 7, 0.08);
+    --red-bright: #ff5252;
+    --red-dim: #b71c1c;
+    --cyan-bright: #00e5ff;
+    --cyan-dim: rgba(0, 229, 255, 0.15);
+    --purple-accent: #b388ff;
+    --mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+
+  /* Subtle scan-line overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.03) 2px,
+      rgba(0, 0, 0, 0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  .container {
+    max-width: 820px;
+    margin: 0 auto;
+  }
+
+  /* Header */
+  .skill-header {
+    text-align: center;
+    margin-bottom: 48px;
+    padding: 32px 0;
+    border-bottom: 1px solid var(--border-dim);
+  }
+
+  .skill-header h1 {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+
+  .skill-header .title {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--cyan-bright);
+    letter-spacing: 1px;
+    text-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+  }
+
+  .skill-header .subtitle {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+
+  /* Panel */
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-dim);
+    border-radius: 6px;
+    margin-bottom: 32px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .panel-header {
+    background: var(--bg-panel-inner);
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-dim);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .panel-header .dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .panel-header .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--border-glow);
+  }
+
+  .panel-header .dot.r { background: #ff5f57; }
+  .panel-header .dot.y { background: #febc2e; }
+  .panel-header .dot.g { background: #28c840; }
+
+  .panel-header .panel-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0.5px;
+    margin-left: 8px;
+  }
+
+  .panel-body {
+    padding: 24px 20px;
+  }
+
+  /* Step headers */
+  .step {
+    margin-bottom: 24px;
+  }
+
+  .step:last-child {
+    margin-bottom: 0;
+  }
+
+  .step-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--cyan-bright);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .step-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border-glow), transparent);
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 4px;
+    font-size: 12px;
+  }
+
+  thead th {
+    text-align: left;
+    padding: 6px 12px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border-dim);
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: 7px 12px;
+    border-bottom: 1px solid rgba(30, 39, 64, 0.5);
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  tbody tr:hover {
+    background: rgba(0, 229, 255, 0.02);
+  }
+
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .val-green { color: var(--green-bright); }
+  .val-amber { color: var(--amber-bright); }
+  .val-red { color: var(--red-bright); }
+  .val-cyan { color: var(--cyan-bright); }
+  .val-purple { color: var(--purple-accent); }
+  .val-dim { color: var(--text-dim); }
+
+  /* Inline result */
+  .result-line {
+    padding: 8px 0;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  .result-line .label {
+    color: var(--text-dim);
+  }
+
+  .result-line .binding {
+    color: var(--amber-bright);
+    font-weight: 500;
+  }
+
+  /* Status badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .badge-safe {
+    background: var(--green-glow);
+    color: var(--green-bright);
+    border: 1px solid var(--green-dim);
+  }
+
+  .badge-caution {
+    background: var(--amber-glow);
+    color: var(--amber-bright);
+    border: 1px solid var(--amber-dim);
+  }
+
+  .badge-danger {
+    background: rgba(255, 82, 82, 0.08);
+    color: var(--red-bright);
+    border: 1px solid var(--red-dim);
+  }
+
+  /* Check/cross indicators */
+  .check { color: var(--green-bright); }
+  .cross { color: var(--red-bright); }
+  .warn { color: var(--amber-bright); }
+
+  /* Verdict box */
+  .verdict-box {
+    margin-top: 16px;
+    padding: 16px 20px;
+    border-radius: 4px;
+    border-left: 3px solid;
+  }
+
+  .verdict-box.go {
+    background: var(--green-glow);
+    border-color: var(--green-bright);
+  }
+
+  .verdict-box.caution {
+    background: var(--amber-glow);
+    border-color: var(--amber-bright);
+  }
+
+  .verdict-box.danger {
+    background: rgba(255, 82, 82, 0.05);
+    border-color: var(--red-bright);
+  }
+
+  .verdict-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .verdict-text {
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-primary);
+  }
+
+  /* Warning box */
+  .warning-box {
+    margin: 16px 0;
+    padding: 14px 16px;
+    background: rgba(255, 82, 82, 0.04);
+    border: 1px solid rgba(255, 82, 82, 0.15);
+    border-radius: 4px;
+  }
+
+  .warning-box .warning-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--red-bright);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .warning-box .warning-text {
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+  }
+
+  .warning-box code {
+    color: var(--amber-bright);
+    background: rgba(255, 193, 7, 0.08);
+    padding: 1px 5px;
+    border-radius: 2px;
+    font-size: 11px;
+  }
+
+  /* PSI bar */
+  .psi-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 0;
+    font-size: 12px;
+  }
+
+  .psi-name {
+    width: 200px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .psi-bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-panel-inner);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .psi-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+
+  .psi-bar-fill.safe { background: var(--green-bright); }
+  .psi-bar-fill.moderate { background: var(--amber-bright); }
+  .psi-bar-fill.danger { background: var(--red-bright); }
+
+  .psi-threshold {
+    position: absolute;
+    top: -2px;
+    height: 10px;
+    width: 1px;
+    background: var(--text-dim);
+  }
+
+  .psi-val {
+    width: 50px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+  }
+
+  /* Decision flow */
+  .decision-flow {
+    margin: 12px 0;
+    padding: 12px 16px;
+    background: var(--bg-panel-inner);
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 2;
+  }
+
+  .decision-flow .condition {
+    color: var(--text-dim);
+  }
+
+  .decision-flow .arrow {
+    color: var(--cyan-bright);
+    margin: 0 4px;
+  }
+
+  .decision-flow .outcome {
+    color: var(--green-bright);
+    font-weight: 500;
+  }
+
+  /* Impact text */
+  .impact {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  /* Gain highlight */
+  .gain {
+    color: var(--green-bright);
+    font-weight: 500;
+  }
+
+  /* Separator */
+  .sep {
+    height: 1px;
+    background: var(--border-dim);
+    margin: 20px 0;
+  }
+
+  /* Prompt line */
+  .prompt {
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-top: 8px;
+  }
+
+  .prompt .cmd {
+    color: var(--cyan-bright);
+  }
+
+  /* XGBoost routing diagram */
+  .routing-diagram {
+    margin: 12px 0;
+    padding: 14px 16px;
+    background: var(--bg-panel-inner);
+    border: 1px solid var(--border-dim);
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+
+  .routing-diagram .node {
+    color: var(--purple-accent);
+  }
+
+  .routing-diagram .path-nan {
+    color: var(--amber-bright);
+  }
+
+  .routing-diagram .path-val {
+    color: var(--cyan-bright);
+  }
+
+  /* Footer note */
+  .footer-note {
+    text-align: center;
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-dim);
+    letter-spacing: 1px;
+  }
+
+  .footer-note a {
+    color: var(--cyan-bright);
+    text-decoration: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="skill-header">
+    <h1>Claude Code Skill</h1>
+    <div class="title">ml-training-window-assessor</div>
+    <div class="subtitle">v2.0.0 &mdash; illustrative output for a SaaS churn prediction model</div>
+  </div>
+
+  <!-- Panel 1: Steps 1-4 -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="panel-title">Steps 1&ndash;4: Training Window Assessment</span>
+    </div>
+    <div class="panel-body">
+
+      <!-- Step 1 -->
+      <div class="step">
+        <div class="step-label">Step 1 &mdash; Per-Output Valid Training Months</div>
+        <div class="prompt"><span class="label">model:</span> Customer churn propensity (XGBoost, 3 outputs) &nbsp; <span class="label">lookforward:</span> per-horizon</div>
+        <table>
+          <thead>
+            <tr><th>Output</th><th>Lookforward</th><th>Valid Through</th><th class="num">Training</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Annual churn</td>
+              <td class="val-dim">365 days</td>
+              <td>Mar 1, 2025</td>
+              <td class="num val-red">4.1 mo</td>
+              <td><span class="cross">&#x2717;</span> <span class="val-dim">0 complete annual cycles</span></td>
+            </tr>
+            <tr>
+              <td>90-day churn</td>
+              <td class="val-dim">90 days</td>
+              <td>Dec 1, 2025</td>
+              <td class="num val-amber">13.2 mo</td>
+              <td><span class="check">&#x2713;</span> <span class="val-dim">1 complete cycle</span></td>
+            </tr>
+            <tr>
+              <td>30-day churn</td>
+              <td class="val-dim">30 days</td>
+              <td>Feb 1, 2026</td>
+              <td class="num val-cyan">15.2 mo</td>
+              <td><span class="check">&#x2713;</span> <span class="val-dim">1 complete cycle</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="result-line">
+          <span class="warn">&#x26A0;</span> The &ldquo;~15 months&rdquo; claim is only true for 30-day churn. Annual churn has just 4.1 months.
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- Step 2 -->
+      <div class="step">
+        <div class="step-label">Step 2 &mdash; Binding Constraint</div>
+        <div class="result-line">
+          <span class="label">Feature availability:</span> CRM (Salesforce) &mdash; meaningful from <span class="val-cyan">Jan 2022</span> (42,800 accounts)
+        </div>
+        <div class="result-line">
+          <span class="label">Feature availability:</span> Product usage (Mixpanel) &mdash; meaningful from <span class="val-cyan">Nov 2024</span> (tracking launched)
+        </div>
+        <div class="result-line">
+          <span class="label">Label availability:</span> Churn events &mdash; available from <span class="val-cyan">Apr 2022</span> (120&ndash;350/month)
+        </div>
+        <div class="result-line">
+          <span class="arrow">&rarr;</span> Binding constraint: <span class="binding">FEATURES</span> (not labels). Mixpanel tracking starts Nov 2024, but CRM + labels go back to 2022.
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- Step 3 -->
+      <div class="step">
+        <div class="step-label">Step 3 &mdash; Lookforward Bridging</div>
+        <div class="result-line">
+          <span class="check">&#x2713;</span> <code>target_date=2022-04-01</code> with 365-day lookforward reaches Apr 2023 &mdash; well within label availability.
+        </div>
+        <div class="result-line">
+          <span class="val-dim">Earliest valid target_date:</span> <span class="val-cyan">2022-04-01</span> &nbsp; <span class="val-dim">(CRM features + churn labels both available; Mixpanel features will be NaN)</span>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- Step 4 -->
+      <div class="step">
+        <div class="step-label">Step 4 &mdash; Extension Benefit</div>
+        <table>
+          <thead>
+            <tr><th>Output</th><th class="num">Current</th><th class="num">Extended</th><th class="num">Gain</th><th>Impact</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Annual churn</td>
+              <td class="num val-red">4.1 mo</td>
+              <td class="num val-green">35.1 mo</td>
+              <td class="num gain">+31.0</td>
+              <td><span class="impact">Adds 2 complete annual renewal cycles (2022&ndash;2024)</span></td>
+            </tr>
+            <tr>
+              <td>90-day churn</td>
+              <td class="num val-amber">13.2 mo</td>
+              <td class="num val-green">44.2 mo</td>
+              <td class="num gain">+31.0</td>
+              <td><span class="impact">11 complete quarterly cycles (was 4)</span></td>
+            </tr>
+            <tr>
+              <td>30-day churn</td>
+              <td class="num val-cyan">15.2 mo</td>
+              <td class="num val-green">46.2 mo</td>
+              <td class="num gain">+31.0</td>
+              <td><span class="impact">Full seasonal coverage including 2 holiday churns</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="result-line">
+          Annual churn benefits most &mdash; <span class="val-green">8.6&times;</span> more data, gaining its first complete renewal cycle.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Panel 2: Step 5 Drift Validation -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="panel-title">Step 5: Drift-Aware Validation</span>
+    </div>
+    <div class="panel-body">
+
+      <!-- Step 5a -->
+      <div class="step">
+        <div class="step-label">Step 5a &mdash; Population Stability Index (PSI)</div>
+        <div class="result-line">
+          <span class="val-dim">Computed PSI for 38 CRM features between extension (2022&ndash;2024) and current (2025) periods:</span>
+        </div>
+
+        <div style="margin: 12px 0 8px;">
+          <div class="psi-row">
+            <span class="psi-name">account_tier</span>
+            <div class="psi-bar-track">
+              <div class="psi-bar-fill safe" style="width: 12%;"></div>
+              <div class="psi-threshold" style="left: 40%;"></div>
+              <div class="psi-threshold" style="left: 100%;"></div>
+            </div>
+            <span class="psi-val val-green">0.03</span>
+          </div>
+          <div class="psi-row">
+            <span class="psi-name">contract_length_months</span>
+            <div class="psi-bar-track">
+              <div class="psi-bar-fill safe" style="width: 20%;"></div>
+              <div class="psi-threshold" style="left: 40%;"></div>
+            </div>
+            <span class="psi-val val-green">0.05</span>
+          </div>
+          <div class="psi-row">
+            <span class="psi-name">days_since_last_support</span>
+            <div class="psi-bar-track">
+              <div class="psi-bar-fill safe" style="width: 28%;"></div>
+              <div class="psi-threshold" style="left: 40%;"></div>
+            </div>
+            <span class="psi-val val-green">0.07</span>
+          </div>
+          <div class="psi-row">
+            <span class="psi-name">mrr_band</span>
+            <div class="psi-bar-track">
+              <div class="psi-bar-fill moderate" style="width: 56%;"></div>
+              <div class="psi-threshold" style="left: 40%;"></div>
+            </div>
+            <span class="psi-val val-amber">0.14</span>
+          </div>
+          <div class="psi-row">
+            <span class="psi-name">pricing_plan_encoded</span>
+            <div class="psi-bar-track">
+              <div class="psi-bar-fill danger" style="width: 100%;"></div>
+              <div class="psi-threshold" style="left: 40%;"></div>
+            </div>
+            <span class="psi-val val-red">0.34</span>
+          </div>
+        </div>
+
+        <div class="result-line">
+          <span class="val-dim">Threshold:</span> &lt;0.10 safe &nbsp;|&nbsp; 0.10&ndash;0.25 caution &nbsp;|&nbsp; &gt;0.25 investigate
+        </div>
+        <div class="result-line">
+          <span class="check">&#x2713;</span> <strong>2/38 features (5.3%)</strong> with PSI &gt; 0.25 &mdash; <span class="badge badge-safe">safe</span> &nbsp; well below 20% threshold
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- Step 5b -->
+      <div class="step">
+        <div class="step-label">Step 5b &mdash; Label Distribution Stability</div>
+        <div class="result-line">
+          <span class="check">&#x2713;</span> Churn rate stable: <span class="val-cyan">8&ndash;12%</span> across 2022&ndash;2025 (quarterly: 2.1&ndash;3.4%, annual: 8.5&ndash;11.2%)
+        </div>
+        <div class="result-line">
+          <span class="val-dim">No shift &gt; 5pp between consecutive years.</span>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- Step 5c -->
+      <div class="step">
+        <div class="step-label">Step 5c &mdash; Feature-Outcome Relationship Stability</div>
+        <div class="result-line"><span class="val-dim">Top CRM feature (account_tier) univariate AUC vs churn across years:</span></div>
+        <table>
+          <thead>
+            <tr><th>Year</th><th class="num">N</th><th class="num">Churned</th><th class="num">AUC</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>2022</td>
+              <td class="num val-dim">8,420</td>
+              <td class="num val-dim">893</td>
+              <td class="num val-green">0.724</td>
+              <td><span class="check">&#x2713;</span></td>
+            </tr>
+            <tr>
+              <td>2023</td>
+              <td class="num">12,150</td>
+              <td class="num">1,287</td>
+              <td class="num val-green">0.731</td>
+              <td><span class="check">&#x2713;</span></td>
+            </tr>
+            <tr>
+              <td>2024</td>
+              <td class="num">18,430</td>
+              <td class="num">1,956</td>
+              <td class="num val-green">0.718</td>
+              <td><span class="check">&#x2713;</span></td>
+            </tr>
+            <tr>
+              <td>2025</td>
+              <td class="num">22,100</td>
+              <td class="num">2,410</td>
+              <td class="num val-green">0.709</td>
+              <td><span class="check">&#x2713;</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="result-line">
+          <span class="check">&#x2713;</span> AUC range <span class="val-green">0.71&ndash;0.73</span> across all years. No relationship flips &mdash; signal stable.
+        </div>
+        <div class="result-line">
+          <span class="val-dim">CRM feature coverage stable: support tickets 85&ndash;92%, contract data 100%, NPS 42&ndash;48%</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Panel 3: Architecture Decision -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+      <span class="panel-title">Step 6: Architecture Decision</span>
+    </div>
+    <div class="panel-body">
+
+      <!-- Decision flow -->
+      <div class="step">
+        <div class="step-label">Decision Heuristic</div>
+        <div class="decision-flow">
+          <div><span class="condition">Step 5a:</span> 5.3% features drifted <span class="val-green">&lt; 20%</span> <span class="check">&#x2713;</span></div>
+          <div><span class="condition">Step 5c:</span> No feature-outcome flips <span class="val-green">stable</span> <span class="check">&#x2713;</span></div>
+          <div><span class="condition">Step 5.5:</span> No AUC degradation on recent folds <span class="val-green">neutral/positive</span> <span class="check">&#x2713;</span></div>
+          <div style="margin-top: 8px;">
+            <span class="arrow">&rarr;</span>
+            <span class="outcome">OPTION A: Extended training window (single model, NaN for missing product usage)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- XGBoost routing -->
+      <div class="step">
+        <div class="step-label">XGBoost Sparsity-Aware Routing</div>
+        <div class="routing-diagram">
+          <div><span class="node">Tree Node</span>: split on <code>logins_last_30d</code></div>
+          <div style="margin-left: 20px;"><span class="path-nan">&#x2502; NaN (pre-Mixpanel)</span> <span class="arrow">&rarr;</span> CRM-only subtree <span class="val-dim">(account_tier, contract_length, NPS...)</span></div>
+          <div style="margin-left: 20px;"><span class="path-val">&#x2502; Value (post-Mixpanel)</span> <span class="arrow">&rarr;</span> CRM + usage subtree <span class="val-dim">(all features available)</span></div>
+          <div style="margin-top: 8px; color: var(--text-dim); font-size: 11px;">
+            Per-node, per-feature routing &mdash; Algorithm 2, Chen &amp; Guestrin 2016
+          </div>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- Critical pitfall -->
+      <div class="step">
+        <div class="step-label">Critical Pitfall</div>
+        <div class="warning-box">
+          <div class="warning-title">&#x26A0; .fillna(0) destroys XGBoost's missing value handling</div>
+          <div class="warning-text">
+            Current pipeline: <code>.fillna(0).astype(int)</code> for product usage event counts.<br>
+            This makes <em>&ldquo;no tracking existed&rdquo;</em> (structural NaN) indistinguishable from <em>&ldquo;tracked but zero usage&rdquo;</em> (genuine 0).<br>
+            <strong>Fix:</strong> Gate <code>.fillna(0)</code> on <code>target_date &gt;= 2024-11-01</code>. Pre-Mixpanel rows stay NaN.
+          </div>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- Verdict -->
+      <div class="step">
+        <div class="step-label">Verdict</div>
+        <div class="verdict-box go">
+          <div class="verdict-title val-green">&#x2713; Extend Training Window</div>
+          <div class="verdict-text">
+            <code>start_date</code>: <span class="val-red">2024-11-01</span> <span class="arrow">&rarr;</span> <span class="val-green">2022-04-01</span><br>
+            Gain: <span class="gain">+31 months</span> per output &nbsp;|&nbsp; First complete annual renewal cycle for annual churn<br>
+            Architecture: Option A (single model) &nbsp;|&nbsp; Gate <code>.fillna(0)</code> on Mixpanel launch date<br>
+            Serving: No change needed (all scored accounts are post-Mixpanel)
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer-note">
+    Real output from <a href="https://github.com/wan-huiyan/ml-training-window-assessor">ml-training-window-assessor</a> v2.0.0 &mdash; Claude Code Skill
+  </div>
+
+</div>
+
+</body>
+</html>
