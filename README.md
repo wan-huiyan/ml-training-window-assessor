@@ -37,19 +37,26 @@ Claude: Let me assess the training window extension...
 
 ## Installation
 
-### Claude Code CLI (recommended)
+### Claude Code (recommended)
 ```bash
-claude install-skill github:wan-huiyan/ml-training-window-assessor
+/plugin marketplace add wan-huiyan/ml-training-window-assessor
+/plugin install ml-training-window-assessor@wan-huiyan-ml-training-window-assessor
 ```
 
-### Git Clone
+Or clone directly:
 ```bash
-git clone https://github.com/wan-huiyan/ml-training-window-assessor.git
-cp -r ml-training-window-assessor/skills/ml-training-window-assessor ~/.claude/skills/
+git clone https://github.com/wan-huiyan/ml-training-window-assessor.git ~/.claude/skills/ml-training-window-assessor
 ```
 
-### Manual
-Copy `SKILL.md` into `~/.claude/skills/ml-training-window-assessor/SKILL.md`
+### Cursor
+```bash
+# Per-project rule (most reliable)
+mkdir -p .cursor/rules
+# Create .cursor/rules/ml-training-window-assessor.mdc with SKILL.md content + alwaysApply: true
+
+# Or global install
+git clone https://github.com/wan-huiyan/ml-training-window-assessor.git ~/.cursor/skills/ml-training-window-assessor
+```
 
 ## The Problem
 
