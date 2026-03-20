@@ -23,7 +23,7 @@ a new data source or removing a data dependency bottleneck.
 
 ## Problem
 
-Multi-output temporal models (e.g., per-term enrollment prediction) often have training
+Multi-output temporal models (e.g., multi-horizon failure prediction) often have training
 windows that are shorter than they appear. A nominal date range of "10 months" may actually
 be 3 months for one output and 9 months for another, due to dynamic lookforward windows
 and label validity constraints. This leads to:
@@ -203,7 +203,7 @@ Remove any training sample where:
 train_eval_time >= test_pred_time_start
 ```
 
-In practice: if your test fold predicts enrollment for Jan 2025, purge training samples
+In practice: if your test fold predicts failures for Jan 2025, purge training samples
 whose lookforward window extends past Jan 2025.
 
 #### Embargo Period
@@ -219,7 +219,7 @@ Exclude training samples with `pred_time <= embargo_threshold`. This prevents te
 autocorrelation from leaking through adjacent time periods.
 
 **Embargo duration heuristic:** Set embargo = max(lookforward) across all outputs.
-For enrollment models with 9-month lookforward, embargo should be ~270 days.
+For models with 9-month lookforward, embargo should be ~270 days.
 
 #### Implementation
 
@@ -568,42 +568,42 @@ After computing per-output training windows:
 
 ## Example
 
-**Scenario:** Enrollment propensity model with 3 term outputs (Fall, Spring/Winter, Summer).
-Behavioral features start Aug 2024. Dynamic lookforward per term.
+**Scenario:** Equipment failure prediction model with 3 forecast horizons (7-day, 30-day, 90-day).
+Sensor features start Aug 2024. Dynamic lookforward per horizon.
 
 **Step 1 result:**
-| Term | Lookforward | Valid Through | Training Months |
-|------|-------------|---------------|-----------------|
-| Summer | ~120 days | Jun 1, 2025 | 3.3 months |
-| Fall | ~180 days | Jul 27, 2025 | 5.2 months |
-| Spring | ~270 days | Nov 30, 2025 | 9.4 months |
+| Horizon | Lookforward | Valid Through | Training Months |
+|---------|-------------|---------------|-----------------|
+| 7-day   | ~120 days   | Jun 1, 2025   | 3.3 months      |
+| 30-day  | ~180 days   | Jul 27, 2025  | 5.2 months      |
+| 90-day  | ~270 days   | Nov 30, 2025  | 9.4 months      |
 
-The "~10 months" claim was only true for Spring. Summer had just 3.3 months.
+The "~10 months" claim was only true for the 90-day horizon. The 7-day horizon had just 3.3 months.
 
-**Step 2 result:** CRM features go back to 2023, but enrollment labels start March 2024.
+**Step 2 result:** Maintenance log features go back to 2023, but failure labels start March 2024.
 Labels are the binding constraint for the extension (not features).
 
 **Step 3 result:** target_date=2024-01-01 with 9-month lookforward reaches Sep 2024 —
 well past when labels begin. Valid.
 
-**Step 4 result:** Extension adds +14 months per term. Summer goes from 3.3 to 17.3 months
-(5.2x), gaining its first complete enrollment cycle.
+**Step 4 result:** Extension adds +14 months per horizon. The 7-day horizon goes from 3.3 to 17.3 months
+(5.2x), gaining its first complete seasonal cycle.
 
-**Step 5 result:** PSI computed for 45 CRM features between extension and current period.
-3 features (6.7%) show PSI > 0.25 (application_stage codes changed). Remaining 93% stable.
+**Step 5 result:** PSI computed for 45 maintenance log features between extension and current period.
+3 features (6.7%) show PSI > 0.25 (equipment codes changed). Remaining 93% stable.
 Feature-outcome AUC consistent across periods. → Safe to extend.
 
 **Step 5.5 result:** Purged walk-forward CV (embargo=270 days, 5 splits):
-| Term | Current AUC | Extended AUC | Delta |
-|------|-------------|--------------|-------|
-| Summer | 0.71 | 0.76 | +0.05 |
-| Fall | 0.74 | 0.75 | +0.01 |
-| Spring | 0.78 | 0.78 | +0.00 |
+| Horizon | Current AUC | Extended AUC | Delta |
+|---------|-------------|--------------|-------|
+| 7-day   | 0.71        | 0.76         | +0.05 |
+| 30-day  | 0.74        | 0.75         | +0.01 |
+| 90-day  | 0.78        | 0.78         | +0.00 |
 
-Extension helps Summer (more seasonal data), neutral for others. No degradation. → Proceed.
+Extension helps the 7-day horizon (more seasonal data), neutral for others. No degradation. → Proceed.
 
 **Step 6 result:** Low drift (<20% features affected) + no AUC degradation → Option A
-(single model, extended window, NaN for missing behavioral features).
+(single model, extended window, NaN for missing sensor features).
 
 ## Notes
 
