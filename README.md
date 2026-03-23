@@ -79,16 +79,20 @@ Multi-output temporal models often have training windows that are shorter than t
 | 5.5. Purged CV | Temporal cross-validation with embargo matching lookforward |
 | 6. Architecture Decision | Option A (single model + NaN) vs Option B (companion model) |
 
-## Key Pitfalls Addressed
+## What This Catches
 
-### `.fillna(0)` Destroys XGBoost's Missing Value Handling
-When extending windows, older rows lack certain data sources. XGBoost's sparsity-aware algorithm (Algorithm 2, [Chen & Guestrin 2016](https://arxiv.org/pdf/1603.02754)) learns optimal routing for NaN values — but `.fillna(0)` destroys this by conflating "no tracking existed" with "tracked but zero events." The skill provides the gated `.fillna()` fix and explains the per-node, per-feature NaN routing mechanism.
+### Strategic pitfalls (these save weeks)
 
-### Standard CV on Temporal Data Causes Silent Leakage
-Standard `TimeSeriesSplit` without purging allows leakage when samples have overlapping prediction-evaluation windows. The skill provides purged walk-forward CV with embargo (per [timeseriescv](https://github.com/sam31415/timeseriescv) and [De Prado 2018](https://www.wiley.com/en-us/Advances+in+Financial+Machine+Learning-p-9781119482086)).
+- **Training window illusion.** You think you have 10 months of data, but one output actually has 3 months due to dynamic lookforward windows eating into the valid range. The skill computes valid months *per output*, not just `end_date - start_date`.
+- **Wrong binding constraint.** Teams assume labels limit how far back they can train, when often it's a *feature source* (e.g., product analytics started 6 months ago). Identifying the real bottleneck unlocks different extension strategies.
+- **Missed lookforward bridging.** When a new data source starts at month N, lookforward windows can reach *past* that boundary — meaning labels are valid earlier than the feature start date. This non-obvious interaction often adds months of usable training data.
+- **Silent drift from naive extension.** Adding 2 years of older data without drift validation can degrade the model. The skill runs PSI checks across periods and recommends bang-bang (all-or-nothing) inclusion based on drift severity.
 
-### Sentinel Values Interact with NaN Handling
-A sentinel of `-1` for "never occurred" groups semantically wrong under XGBoost threshold splits. The skill recommends `999` (groups "never" with "stale") and gates sentinels on data source availability.
+### Implementation pitfalls (these save hours)
+
+- **`.fillna(0)` destroys NaN routing.** XGBoost's sparsity-aware algorithm ([Chen & Guestrin 2016](https://arxiv.org/pdf/1603.02754)) learns optimal routing for missing values — but `.fillna(0)` conflates "no tracking existed" with "tracked but zero events." The skill provides gated `.fillna()` that preserves NaN semantics for pre-tracking rows.
+- **Temporal leakage from unpurged CV.** Standard `TimeSeriesSplit` allows leakage when samples have overlapping prediction-evaluation windows. The skill uses purged walk-forward CV with embargo ([De Prado 2018](https://www.wiley.com/en-us/Advances+in+Financial+Machine+Learning-p-9781119482086)).
+- **Sentinel value interactions.** A sentinel of `-1` for "never occurred" groups semantically wrong under tree threshold splits. The skill recommends `999` and gates sentinels on data source availability.
 
 ## Limitations
 
