@@ -151,15 +151,18 @@ The skill verifies before delivering a verdict:
 ## Trigger Conditions
 
 The skill activates when:
-- "Can we train on more data?" / "How far back can we go?"
-- "Our model only has X months of training data"
+- "Can we train on more data?" / "How far back can we go?" / "Can we extend the training window?"
+- "Our model only has X months of training data" / "barely any training data"
 - Training data is bottlenecked by one data source
 - A multi-output model has per-output lookforward windows of different lengths
+- One output has much less data than others
 - Seasonal patterns exist but training doesn't cover full cycles
 - "Extend the training window" / "not enough historical data"
 - "How many complete seasonal cycles?" / "which data source is the bottleneck for training history?"
 - "Training on pre-launch data by dropping behavioral features"
 - "Lookforward windows eating into effective training months"
+- "Include older records or historical data by adding a new data source"
+- "Should we add older data from before the tracking pixel was installed?"
 
 ## Related Skills
 
@@ -170,6 +173,7 @@ The skill activates when:
 
 | Version | Changes |
 |---------|---------|
+| 3.0.0 | Progressive disclosure: extract pitfalls + drift code to `references/` (670 → 328 lines). Trigger recall 66.7% → 86.7%. Schliff composite: 83.6 → 89.7 |
 | 2.1.0 | Enrich trigger description, add eval suite, add composability metadata (schliff score: 56.8 → 83.6) |
 | 2.0.0 | Drift-aware validation (PSI, purged CV), XGBoost NaN routing research, bang-bang optimality, demo screenshots |
 | 1.1.0 | `.fillna(0)` pitfall, sentinel value interaction, preprocessing parity |
@@ -177,7 +181,7 @@ The skill activates when:
 
 ## Acknowledgements
 
-Trigger accuracy and eval suite improved using [schliff](https://github.com/Zandereins/schliff) — an autonomous skill scoring and improvement framework (composite score: 56.8 → 83.6).
+Improved using [schliff](https://github.com/olelehmann/schliff) — an autonomous skill scoring and improvement framework (composite score: 56.8 → 89.7 across two improvement rounds).
 
 ## License
 
