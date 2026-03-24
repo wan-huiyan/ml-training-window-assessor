@@ -156,6 +156,10 @@ The skill activates when:
 - Training data is bottlenecked by one data source
 - A multi-output model has per-output lookforward windows of different lengths
 - Seasonal patterns exist but training doesn't cover full cycles
+- "Extend the training window" / "not enough historical data"
+- "How many complete seasonal cycles?" / "which data source is the bottleneck for training history?"
+- "Training on pre-launch data by dropping behavioral features"
+- "Lookforward windows eating into effective training months"
 
 ## Related Skills
 
@@ -166,9 +170,14 @@ The skill activates when:
 
 | Version | Changes |
 |---------|---------|
+| 2.1.0 | Enrich trigger description, add eval suite, add composability metadata (schliff score: 56.8 → 83.6) |
 | 2.0.0 | Drift-aware validation (PSI, purged CV), XGBoost NaN routing research, bang-bang optimality, demo screenshots |
 | 1.1.0 | `.fillna(0)` pitfall, sentinel value interaction, preprocessing parity |
 | 1.0.0 | Initial release: per-output training months, lookforward bridging, Option A/B architecture |
+
+## Acknowledgements
+
+Trigger accuracy and eval suite improved using [schliff](https://github.com/Zandereins/schliff) — an autonomous skill scoring and improvement framework (composite score: 56.8 → 83.6).
 
 ## License
 
