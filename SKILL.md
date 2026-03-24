@@ -3,14 +3,18 @@ name: ml-training-window-assessor
 description: |
   Assess whether a training window can be extended by adding a new data source (e.g., CRM-only
   features to bypass behavioral data limitations). Use when: (1) the user asks "can we train on
-  more data?", "how far back can we go?", or "our model only has N months of data", (2) a
-  multi-output model has different effective training windows per output due to dynamic lookforward,
-  (3) you need to determine whether labels or features are the binding constraint for historical
-  data availability, (4) the user mentions seasonal patterns with insufficient training cycles,
-  (5) the user says "extend the training window", "not enough historical data", "how many
-  complete seasonal cycles?", "which data source is the bottleneck for training history?",
-  (6) someone asks about training on pre-launch data by dropping behavioral features,
-  (7) the user mentions lookforward windows eating into effective training months.
+  more data?", "how far back can we go?", "can we extend the training window?", or "our model
+  only has N months of data", (2) a multi-output model has different effective training windows
+  per output due to dynamic lookforward, (3) you need to determine whether labels or features
+  are the binding constraint for historical data availability, (4) the user mentions seasonal
+  patterns with insufficient training cycles, (5) the user says "extend the training window",
+  "not enough historical data", "how many complete seasonal cycles?", "which data source is
+  the bottleneck for training history?", (6) someone asks about training on pre-launch data
+  by dropping behavioral features, (7) the user mentions lookforward windows eating into
+  effective training months, (8) the user wants to include older records or historical data
+  by adding a new data source, (9) "barely any training data" or one output has much less
+  data than others, (10) "should we add older data from before the tracking pixel was
+  installed?", "include data from before [system] was set up".
   Do NOT use for: questions about individual column evaluation or "should we add feature X?"
   — use ml-feature-evaluator instead for that.
   Covers: per-output label validity computation, lookforward bridging, feature vs label binding
@@ -112,177 +116,29 @@ The most compelling argument is usually **complete seasonal cycles gained** — 
 
 ### Step 5: Drift-Aware Feature Validation in Extension Period
 
-Before accepting extension data, verify that the extension period's data distribution
-is compatible with the current period. This goes beyond simple coverage checks — you need
-statistical evidence that older data won't degrade the model.
+Run three checks before accepting extension data. See `references/drift-validation.md`
+for code, SQL queries, and implementation details.
 
-#### 5a: Population Stability Index (PSI)
+**5a: PSI per feature.** Compute Population Stability Index between extension and current
+periods. Thresholds: <0.10 safe, 0.10-0.25 caution, >0.25 investigate. If >20% of features
+exceed 0.25, the bang-bang heuristic (Step 6) applies.
 
-For each feature, compute PSI between the extension period and the current period:
+**5b: Label distribution stability.** Check positive rate per quarter per output. Shift
+>5pp warrants investigation. If correlated with seasonal patterns → expected. If not → halt
+extension for that output.
 
-```python
-def compute_psi(expected, actual, bins=10):
-    """PSI between two distributions. Lower = more stable."""
-    expected_pct = np.histogram(expected, bins=bins)[0] / len(expected)
-    actual_pct = np.histogram(actual, bins=bins)[0] / len(actual)
-    # Avoid division by zero
-    expected_pct = np.clip(expected_pct, 0.001, None)
-    actual_pct = np.clip(actual_pct, 0.001, None)
-    psi = np.sum((actual_pct - expected_pct) * np.log(actual_pct / expected_pct))
-    return psi
-```
-
-**PSI thresholds (industry standard):**
-| PSI Value | Interpretation | Action |
-|-----------|---------------|--------|
-| < 0.10 | Insignificant shift | Safe to extend |
-| 0.10 - 0.25 | Moderate shift | Extend with caution, monitor |
-| > 0.25 | Significant shift | Investigate before extending — this feature may need exclusion or transformation |
-
-Compute PSI for every feature. If >20% of features have PSI > 0.25, the extension period
-is structurally different and the "bang-bang" heuristic (Step 6) applies.
-
-#### 5b: Label Distribution Stability
-
-Check that the outcome rate (positive class proportion) is stable:
-
-```sql
-SELECT
-  DATE_TRUNC(target_date, QUARTER) AS quarter,
-  output_name,
-  COUNT(*) AS n_samples,
-  AVG(CAST(label AS FLOAT64)) AS positive_rate
-FROM training_data
-WHERE label_valid = TRUE
-GROUP BY 1, 2
-ORDER BY 1, 2
-```
-
-A positive rate shift > 5 percentage points between periods warrants investigation.
-It may reflect genuine seasonal patterns (expected) or data quality issues (dangerous).
-
-#### 5c: Feature-Outcome Relationship Stability
-
-The most critical check: does the relationship between features and outcomes hold
-across periods? Compute per-period AUC for the top features:
-
-```python
-from sklearn.metrics import roc_auc_score
-
-for period in ['extension', 'current']:
-    period_data = df[df['period'] == period]
-    for feature in top_features:
-        valid = period_data[[feature, 'label']].dropna()
-        if len(valid) > 50:
-            auc = roc_auc_score(valid['label'], valid[feature])
-            print(f"{period} | {feature} | AUC={auc:.3f}")
-```
-
-If a feature's univariate AUC flips direction (e.g., 0.62 in current → 0.45 in extension),
-that feature's relationship with the outcome has fundamentally changed. This is concept
-drift at the feature level.
-
-**References:**
-- [Frouros](https://github.com/IFCA-Advanced-Computing/frouros) — 28 drift detection
-  algorithms including PSI, KS test, Chi-squared, for both batch and streaming contexts
-- [River ADWIN](https://github.com/online-ml/river) — Adaptive windowing for streaming
-  drift detection; useful for monitoring post-deployment
+**5c: Feature-outcome relationship stability.** Compute per-period univariate AUC for top
+features. If any feature's AUC flips direction between periods, that's concept drift at
+the feature level.
 
 ### Step 5.5: Temporal Stability Test via Purged Walk-Forward CV
 
-Standard k-fold CV on temporal data causes information leakage. When evaluating an
-extended training window, you MUST use temporal cross-validation with purging and embargo.
+Standard k-fold CV on temporal data leaks information. Use purged walk-forward CV with
+embargo = max(lookforward) across all outputs. See `references/drift-validation.md` for
+implementation with `timeseriescv` or manual purge logic.
 
-#### Why Purging and Embargo Matter
-
-Each training sample has two timestamps:
-- **pred_time**: when features are observed (the target_date / prediction date)
-- **eval_time**: when the outcome becomes known (target_date + lookforward)
-
-Without purging, training samples whose eval_time overlaps with the test fold's pred_time
-will leak future information into the model.
-
-#### Purge Condition
-
-Remove any training sample where:
-```
-train_eval_time >= test_pred_time_start
-```
-
-In practice: if your test fold predicts enrollment for Jan 2025, purge training samples
-whose lookforward window extends past Jan 2025.
-
-#### Embargo Period
-
-After purging, add a temporal buffer (embargo) between the test fold and subsequent
-training data:
-
-```
-embargo_threshold = max(test_eval_times) + embargo_duration
-```
-
-Exclude training samples with `pred_time <= embargo_threshold`. This prevents temporal
-autocorrelation from leaking through adjacent time periods.
-
-**Embargo duration heuristic:** Set embargo = max(lookforward) across all outputs.
-For enrollment models with 9-month lookforward, embargo should be ~270 days.
-
-#### Implementation
-
-```python
-from timeseriescv.cross_validation import PurgedWalkForwardCV
-
-cv = PurgedWalkForwardCV(
-    n_splits=5,
-    n_test_splits=1
-)
-
-# pred_times = target_date for each sample
-# eval_times = target_date + lookforward for each sample
-for train_idx, test_idx in cv.split(X, pred_times=pred_times, eval_times=eval_times):
-    model.fit(X[train_idx], y[train_idx])
-    score = model.score(X[test_idx], y[test_idx])
-```
-
-Or implement manually:
-
-```python
-def purged_temporal_split(df, test_start, test_end, lookforward_days, embargo_days=0):
-    """Split with purging and embargo for temporal models."""
-    test = df[(df['target_date'] >= test_start) & (df['target_date'] < test_end)]
-
-    # Purge: remove training samples whose labels overlap with test predictions
-    test_pred_start = test['target_date'].min()
-    purge_mask = df['eval_time'] < test_pred_start
-
-    # Embargo: add buffer after test fold
-    test_eval_end = test['eval_time'].max()
-    embargo_end = test_eval_end + pd.Timedelta(days=embargo_days)
-
-    train_before = df[purge_mask & (df['target_date'] < test_start)]
-    train_after = df[df['target_date'] > embargo_end]  # if using future folds
-    train = pd.concat([train_before, train_after])
-
-    return train, test
-```
-
-#### Comparing Current vs Extended Window
-
-Run purged walk-forward CV twice:
-1. **Current window only** — establish baseline per-output AUC
-2. **Extended window** — measure impact of adding older data
-
-If extended window shows AUC degradation > 0.01 for any output on recent test folds
-(where all features are available), the extension is hurting. Apply the bang-bang
-heuristic from Step 6.
-
-**References:**
-- [timeseriescv](https://github.com/sam31415/timeseriescv) — Scikit-learn style purged
-  walk-forward and combinatorial purged k-fold CV (284 stars, actively maintained)
-- [MLFinLab](https://github.com/hudson-and-thames/mlfinlab) — De Prado's Combinatorial
-  Purged Cross-Validation (CPCV) from "Advances in Financial Machine Learning" (4,613 stars)
-- De Prado, M.L. (2018). *Advances in Financial Machine Learning*. Wiley. Chapter 7:
-  Cross-Validation in Finance
+Run twice: (1) current window baseline, (2) extended window. If AUC degrades >0.01 on
+recent test folds, the extension is hurting — apply bang-bang heuristic.
 
 ### Step 6: Choose Architecture (Drift-Informed)
 
@@ -317,229 +173,40 @@ ELSE (moderate drift, 20-50% features shifted):
      Keep them as NaN (XGBoost handles natively).
 ```
 
-**The bang-bang insight** (from optimal control theory, applied to ML training under
-concept drift): When concept drift is significant, the optimal policy is binary — either
-use all the data from a period or none of it. Partial windows from drifted periods add
-noise without enough signal. This is proven optimal when concept durations follow
-Decreasing Mean Residual Life (DMRL) distributions, which is common in practice (the
-longer a stable regime has lasted, the more likely it is to end soon).
+**Bang-bang insight:** Under significant concept drift, the optimal policy is binary —
+use all data from a period or none. Partial windows add noise without signal.
+(arXiv:2512.12816)
 
-**Reference:** "Optimal Resource Allocation for ML Model Training and Deployment under
-Concept Drift" (arXiv:2512.12816, Dec 2025)
+## Implementation Pitfalls
 
-## Critical Pitfall: `.fillna(0)` Destroys XGBoost's Missing Value Handling
+When implementing Option A, avoid these traps. See `references/pitfalls.md` for full
+details, code examples, and references.
 
-When implementing Option A (extended training window), XGBoost's sparsity-aware algorithm
-(Algorithm 2, Chen & Guestrin 2016) learns an optimal "default direction" for NaN values
-at every tree node. This is how it naturally handles rows where a data source didn't exist —
-NaN rows get routed down CRM-feature branches, non-NaN rows use behavioral+CRM branches.
+1. **`.fillna(0)` destroys XGBoost's NaN routing.** Gate `.fillna(0)` on the data source's
+   availability date — only fill 0 for post-tracking rows. Pre-tracking rows must stay NaN
+   so XGBoost's sparsity-aware algorithm can learn separate routing per population.
 
-**The trap:** Many ML pipelines impute missing values to 0 before training (e.g.,
-`.fillna(0)` for event counts). This destroys the missingness signal:
-- "No tracking existed" (structural NaN) → 0
-- "Tracked but zero events" (genuine zero) → 0
+2. **Sentinel values need gating too.** Use `999` (not `-1`) for "never occurred" sentinels.
+   Pre-tracking rows should be NaN (not sentinel) — sentinel means "tracking existed but
+   event never occurred," which is a different signal than "tracking didn't exist."
 
-XGBoost can no longer distinguish the two populations. The sparsity-aware algorithm
-has nothing to work with — there are no NaN values left.
+3. **Preprocessing parity across pipeline files.** The gated fillna logic must be identical
+   in training, serving, dashboard, and export scripts. Extract into a shared function.
+   Serving script may not need changes if all served data is post-tracking.
 
-**The fix:** Gate `.fillna(0)` on the data source's availability date:
-
-```python
-has_tracking = df['target_date'] >= pd.Timestamp('2025-02-23')  # Bloomreach start
-behavioral_cols = [c for c in df.columns if c.startswith(('session_start_', 'page_view_', ...))]
-
-for col in behavioral_cols:
-    df.loc[has_tracking, col] = df.loc[has_tracking, col].fillna(0)
-    # Pre-tracking rows: leave as NaN → XGBoost handles natively
-
-# Sentinel features also need gating:
-df.loc[has_tracking, 'days_since_deposit'] = df.loc[has_tracking, 'days_since_deposit'].fillna(999)
-# Pre-tracking rows: leave as NaN (not sentinel)
-```
-
-**Serving script impact:** If all served data comes from the active-tracking period
-(current date is always post-launch), the existing `.fillna(0)` in the serving script
-remains correct. No serving change needed.
-
-**Cold-start benefit:** At serving time, new users who haven't interacted with the
-platform yet also have NaN behavioral features (from the SQL query returning NULL).
-The model's learned NaN routing — "when behavioral data is missing, rely on CRM
-features" — directly applies to cold-start users. This is a **free benefit** of
-Option A: the model implicitly learns a cold-start strategy from the pre-tracking
-training data.
-
-**How XGBoost actually handles the missing block (per Chen & Guestrin 2016):**
-
-XGBoost does NOT build separate "CRM-only trees" and "CRM+behavioral trees." What
-happens is more granular: when a tree considers splitting on a behavioral feature,
-all NaN rows get routed to one side via the learned default direction. The NaN-side
-child node then only has CRM features available for further splitting (since all
-behavioral features are simultaneously NaN for pre-tracking rows). The non-NaN side
-can split on both CRM and behavioral features. So within a single tree, you get
-**branches** that are effectively CRM-only and branches that use all features — it's
-separate subtrees within the same tree, not separate trees.
-
-Key mechanics:
-- The default direction is learned **per-node, per-feature** — context-dependent,
-  not a global decision. The same feature's NaN can go left at the root and right
-  at a deeper node.
-- Only non-missing observations are visited when computing split gains (efficient).
-- **Edge case:** If no missing values exist in training data for a feature, missing
-  values at inference time default to the right branch. This matters if your training
-  data has no NaN for a feature but serving data does.
-
-**Why NaN is better than a `has_behavioral_data` flag:**
-- NaN lets XGBoost learn per-feature, per-node routing (more expressive)
-- A binary flag forces a single global split — it's largely redundant with NaN
-  routing, since XGBoost already implicitly learns a `has_behavioral_data` split
-  when it routes all-NaN rows to one side
-- NaN is the native interface for XGBoost's sparsity-aware algorithm
-- **However:** if you must impute to 0 (e.g., pipeline constraints), then a
-  `has_behavioral_data` flag becomes **necessary** — it's the only way the model
-  can distinguish "no tracking existed" from "tracked, zero events"
-
-**Feature importance diagnostic:** When training on mixed pre/post-tracking data,
-behavioral features will appear **less important than they truly are**, because
-pre-tracking rows (where they're NaN/0) dilute their discriminative power. Compare
-feature importance on the post-tracking subset alone vs the full dataset — if
-behavioral features rank much higher on the subset, the dilution effect is real
-but the model is still learning the correct routing.
-
-**Temporal proxy risk (MNAR):** When missingness is perfectly correlated with time period
-(all pre-launch rows are NaN), the learned default direction encodes the old cohort's
-patterns. Mitigate by: (1) verifying feature-outcome relationships are stable across
-periods (Step 5c), (2) using purged temporal CV (Step 5.5), (3) monitoring per-period
-calibration.
-
-**References:**
-- [XGBoost: A Scalable Tree Boosting System (Chen & Guestrin, 2016)](https://arxiv.org/pdf/1603.02754) — Algorithm 2: sparsity-aware split finding
-- [XGBoost FAQ: Missing Values](https://xgboost.readthedocs.io/en/stable/faq.html)
-
-## Critical Pitfall: Sentinel Values Interact with Missing Value Handling
-
-When extending the training window, "days since X" features often use sentinel values
-(e.g., 999 for "event never occurred"). The sentinel choice interacts with NaN handling:
-
-**The trap:** A sentinel of `-1` for "never visited" groups semantically wrong with
-XGBoost's threshold splits. A split at `> -0.5` puts "never visited" (-1) alongside
-"visited today" (0) — the opposite of what you want.
-
-**The fix:** Use `999` (not `-1`) for "never occurred" sentinels. This groups "never"
-alongside "stale" (e.g., >180 days), which is semantically correct — someone who never
-visited is more similar to someone who visited 6 months ago than someone who visited
-today.
-
-**Interaction with NaN gating:** For the extension period, sentinel features also need
-gating. Pre-tracking rows should be NaN (not sentinel), because the sentinel means
-"tracking existed but event never occurred" — a different signal than "tracking didn't
-exist." Only fill sentinels for post-tracking rows.
-
-## Critical Pitfall: Preprocessing Parity Across Pipeline Files
-
-The gated `.fillna()` logic must be **identically synchronized** across every file that
-preprocesses features. In a typical ML pipeline, this includes:
-
-1. **Training script** (Cloud Run / batch job)
-2. **Serving script** (Cloud Run / API endpoint)
-3. **Dashboard / analysis script** (Streamlit / Jupyter)
-4. **Export / SHAP analysis script**
-
-If the training script gates `.fillna(0)` on target_date but the serving script doesn't
-(or vice versa), you get **silent train-serve skew** — the model produces wrong
-predictions with no error.
-
-**Practical safeguard:** Extract the gating logic into a shared preprocessing function
-imported by all scripts:
-
-```python
-def gate_fillna_behavioral(df, tracking_start='2025-02-23'):
-    """Fill behavioral NaN with 0 only for rows where tracking existed."""
-    has_tracking = df['target_date'] >= pd.Timestamp(tracking_start)
-    behavioral_cols = [c for c in df.columns if any(
-        c.startswith(p) for p in BEHAVIORAL_PREFIXES
-    )]
-    for col in behavioral_cols:
-        df.loc[has_tracking, col] = df.loc[has_tracking, col].fillna(0)
-    return df
-```
-
-Mark any legacy `.replace(-1, 999)` patches with comments referencing the
-migration ticket, so they can be removed after the training data pipeline is rebuilt.
-
-## Critical Pitfall: Standard CV on Temporal Data Causes Silent Leakage
-
-Standard k-fold or even `TimeSeriesSplit` without purging allows information leakage
-when samples have overlapping prediction-evaluation windows (which is the norm for models
-with lookforward periods).
-
-**The problem:** A training sample with `target_date = 2024-06-01` and `lookforward = 180 days`
-has its outcome determined by events through Dec 2024. If a test sample has
-`target_date = 2024-09-01`, standard temporal splits would include the June training sample —
-but its label was determined using information from the test sample's prediction period.
-
-**The fix:** Always use purged CV with embargo matching the lookforward window (Step 5.5).
-Without this, evaluation of the extended window is unreliable — you may conclude the
-extension helps when it's actually just leaking future information.
-
-**How to detect if your current evaluation is leaking:**
-1. Compare purged CV AUC vs standard CV AUC
-2. If standard CV shows significantly higher AUC (>0.02 gap), you have leakage
-3. The longer the lookforward window, the worse the leakage
-
-**References:**
-- De Prado, M.L. (2018). Chapter 7: "The dangers of ordinary cross-validation are
-  compounded when the investment strategy involves dynamic position sizing"
-- [timeseriescv](https://github.com/sam31415/timeseriescv) — implements the purge/embargo
-  logic correctly
+4. **Standard CV on temporal data leaks.** Always use purged CV with embargo matching
+   the lookforward window (Step 5.5). Compare purged vs standard CV AUC — if gap > 0.02,
+   you have leakage.
 
 ## Post-Extension Monitoring
 
-After deploying a model trained on the extended window, monitor for concept drift
-in production using these approaches:
+After deploying, monitor for drift. See `references/drift-validation.md` for code.
 
-### Batch Monitoring (recommended for periodic retraining)
-
-Run PSI checks monthly between the training distribution and recent inference data:
-- If PSI > 0.25 for >20% of features → trigger retraining
-- If positive rate shifts > 5pp from training → investigate
-
-### Streaming Monitoring (for real-time systems)
-
-Use ADWIN (Adaptive Windowing) from the River library to detect drift in prediction
-confidence or error rate:
-
-```python
-from river.drift import ADWIN
-
-adwin = ADWIN(delta=0.002)  # Lower delta = more sensitive
-
-for prediction_error in error_stream:
-    in_drift, _ = adwin.update(prediction_error)
-    if in_drift:
-        print("Drift detected — consider retraining or window adjustment")
-```
-
-ADWIN maintains an adaptive-length window and detects when the mean of recent values
-diverges statistically from historical values. It automatically shrinks the window
-when drift is detected, making it suitable for detecting when the training window's
-assumptions have expired.
-
-**Reference:** [River](https://github.com/online-ml/river) — 5,700+ stars, actively maintained
-
-### Temporal Safety in Feature Engineering
-
-When extending the training window, ensure feature engineering pipelines don't introduce
-future leakage. Google's Temporian library enforces this by default — all temporal
-operators are causal (cannot depend on future data) unless explicitly overridden with
-`tp.leak()`. Even if not using Temporian, adopt this principle:
-
-**Rule:** Every feature computation must be expressible as a function of data available
-at `target_date - 1 day` (or the appropriate lookback boundary). If extending the window
-introduces features computed from data that wasn't available at prediction time, you
-have leakage.
-
-**Reference:** [Temporian](https://github.com/google/temporian) — Google's temporal
-data library with built-in leakage prevention (710 stars)
+- **Batch:** Monthly PSI checks. If >20% of features exceed 0.25 → retrain. If positive
+  rate shifts >5pp → investigate.
+- **Streaming:** Use River's ADWIN for real-time drift detection on prediction confidence.
+- **Temporal safety:** Every feature must be computable from data available at
+  `target_date - 1 day`. Temporian enforces this by default.
 
 ## Verification
 
@@ -655,15 +322,7 @@ Extension helps Summer (more seasonal data), neutral for others. No degradation.
 - See also: `ml-feature-evaluator` for the 6-query diagnostic pattern when evaluating
   the features available in the extension period.
 
-## References Summary
+## References
 
-| Source | What it contributes | Stars |
-|--------|-------------------|-------|
-| [timeseriescv](https://github.com/sam31415/timeseriescv) | Purged walk-forward CV + combinatorial purged k-fold with embargo | 284 |
-| [River](https://github.com/online-ml/river) | ADWIN adaptive windowing for streaming drift detection | 5,752 |
-| [Temporian](https://github.com/google/temporian) | Temporal safety / leakage prevention in feature engineering | 710 |
-| [MLFinLab](https://github.com/hudson-and-thames/mlfinlab) | De Prado's CPCV, triple barrier labeling (analogous to dynamic lookforward) | 4,613 |
-| [Frouros](https://github.com/IFCA-Advanced-Computing/frouros) | 28 drift detection algorithms (PSI, KS, Chi-squared) | 252 |
-| [arXiv:2512.12816](https://arxiv.org/abs/2512.12816) | Bang-bang optimality for training window under concept drift | — |
-| Chen & Guestrin (2016) | XGBoost sparsity-aware split finding (Algorithm 2) | — |
-| De Prado (2018) | Purged CV theory, temporal leakage in finance ML | — |
+See `references/drift-validation.md` and `references/pitfalls.md` for full reference
+tables with links and star counts.

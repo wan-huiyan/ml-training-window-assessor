@@ -1,0 +1,169 @@
+{
+  "skill": "ml-training-window-assessor",
+  "version": "2.0.0",
+  "triggers": [
+    {"prompt": "can we extend our training window to train on more historical data?", "should_trigger": true},
+    {"prompt": "how far back can we go with the training data if we use CRM-only features?", "should_trigger": true},
+    {"prompt": "extend the training window to include older records by adding a new data source", "should_trigger": true},
+    {"prompt": "our model only has 3 months of training data, not enough historical data for seasonal patterns", "should_trigger": true},
+    {"prompt": "seasonal patterns need more training cycles, can we extend the training window?", "should_trigger": true},
+    {"prompt": "the model only has 3 months of training data, is there a binding constraint on labels or features?", "should_trigger": true},
+    {"prompt": "can we use CRM features to bypass behavioral data limitations and extend training?", "should_trigger": true},
+    {"prompt": "our behavioral data only starts from August but labels go back years, can we extend the training window?", "should_trigger": true},
+    {"prompt": "which data source is the binding constraint bottleneck for extending training history?", "should_trigger": true},
+    {"prompt": "how many complete seasonal cycles does each output have in the training window?", "should_trigger": true},
+    {"prompt": "the summer term output has barely any training data compared to spring due to lookforward", "should_trigger": true},
+    {"prompt": "should we add older data from before the tracking pixel was installed to extend the training window?", "should_trigger": true},
+    {"prompt": "is there enough label volume in the extension period to justify extending the training window?", "should_trigger": true},
+    {"prompt": "can we train on pre-launch data if we drop behavioral features and extend the window?", "should_trigger": true},
+    {"prompt": "our dynamic lookforward window eats into the effective training months per output", "should_trigger": true},
+    {"prompt": "which columns should I include in my random forest?", "should_trigger": false},
+    {"prompt": "how do I tune the learning rate and regularization?", "should_trigger": false},
+    {"prompt": "should we use logistic regression or gradient boosting?", "should_trigger": false},
+    {"prompt": "deploy to Cloud Run with Docker containers", "should_trigger": false},
+    {"prompt": "set up the serving endpoint for predictions", "should_trigger": false},
+    {"prompt": "how do I do one-hot encoding for string columns?", "should_trigger": false},
+    {"prompt": "what batch size for my deep learning job?", "should_trigger": false},
+    {"prompt": "write a Spark pipeline to clean and join tables", "should_trigger": false},
+    {"prompt": "how do I handle class imbalance with SMOTE?", "should_trigger": false},
+    {"prompt": "should we use early stopping or patience callbacks?", "should_trigger": false},
+    {"prompt": "how do I set up Grafana dashboards for alerts?", "should_trigger": false},
+    {"prompt": "what precision and recall targets should we aim for?", "should_trigger": false}
+  ],
+  "test_cases": [
+    {
+      "id": "analyze-per-output-window",
+      "prompt": "Our enrollment model has 3 term outputs (Fall, Spring, Summer) with dynamic lookforward. Behavioral data starts Aug 2024. We claim 10 months of training data. Can we actually use all of it? Analyze the effective training window.",
+      "assertions": [
+        {"type": "contains", "value": "per-output", "description": "Computes per-output valid training months, not a single aggregate"},
+        {"type": "contains", "value": "lookforward", "description": "Explains that lookforward reduces effective training months differently per output"},
+        {"type": "excludes", "value": "10 months of data", "description": "Does not accept the nominal 10-month claim at face value"},
+        {"type": "pattern", "value": "Summer.*shorter|Summer.*less|Summer.*fewest", "description": "Identifies Summer as having the shortest effective window"}
+      ]
+    },
+    {
+      "id": "check-extension-feasibility",
+      "prompt": "We want to extend the training window by using CRM-only features for older rows. CRM data goes back to 2022. How do we validate whether extending is safe?",
+      "assertions": [
+        {"type": "contains", "value": "PSI", "description": "Recommends Population Stability Index to check for distribution drift"},
+        {"type": "contains", "value": "NaN", "description": "Mentions leaving missing features as NaN for XGBoost sparsity handling"},
+        {"type": "contains", "value": "purged", "description": "Recommends purged temporal cross-validation for evaluation"},
+        {"type": "pattern", "value": "Option [AB]|companion model|extended.*feature flag", "description": "Discusses architecture options for the extension"}
+      ]
+    },
+    {
+      "id": "validate-cv-approach",
+      "prompt": "I ran standard 5-fold CV on the extended dataset and AUC went up by 0.03. Can we compare this to purged walk-forward CV to check for leakage?",
+      "assertions": [
+        {"type": "contains", "value": "leakage", "description": "Warns about information leakage from standard k-fold on temporal data"},
+        {"type": "contains", "value": "embargo", "description": "Recommends embargo matching the lookforward window"},
+        {"type": "contains", "value": "purged", "description": "Recommends purged walk-forward CV"},
+        {"type": "excludes", "value": "ship it", "description": "Does not approve shipping based on standard CV alone"}
+      ]
+    },
+    {
+      "id": "analyze-drift-decision",
+      "prompt": "PSI analysis shows 35% of features have PSI above 0.25 in the extension period. Two features flipped AUC direction. Analyze whether we should still extend.",
+      "assertions": [
+        {"type": "contains", "value": "drift", "description": "Identifies this as a drift scenario"},
+        {"type": "pattern", "value": "bang.bang|binary.*decision|all.*or.*none", "description": "References the bang-bang heuristic for severe drift"},
+        {"type": "contains", "value": "companion", "description": "Recommends companion model as alternative"},
+        {"type": "excludes", "value": "safe to extend", "description": "Does not recommend naive extension with all features"}
+      ]
+    },
+    {
+      "id": "check-lookforward-bridge",
+      "prompt": "Our target_date is 2024-01-01 and lookforward is 9 months. Labels only start in March 2024. Check if this target date is valid via lookforward bridging.",
+      "assertions": [
+        {"type": "contains", "value": "bridge", "description": "Explains the lookforward bridging mechanism"},
+        {"type": "pattern", "value": "Sep(tember)?.*2024|9.*month", "description": "Calculates that Jan 2024 + 9 months reaches past March 2024"},
+        {"type": "contains", "value": "valid", "description": "Concludes the target date is valid"},
+        {"type": "format", "value": "date_calculation", "description": "Shows the date arithmetic for lookforward bridging"}
+      ]
+    },
+    {
+      "id": "optimize-single-output",
+      "prompt": "We have a single-output churn model with 6 months of data. No seasonal patterns. Features go back 3 years. Should we optimize by extending the training window?",
+      "assertions": [
+        {"type": "contains", "value": "drift", "description": "Still recommends drift checks on the extension period"},
+        {"type": "contains", "value": "purged", "description": "Requires purged temporal CV to validate extension"},
+        {"type": "pattern", "value": "seasonal|cycle", "description": "Notes that without seasonal patterns the urgency is lower"},
+        {"type": "contains", "value": "PSI", "description": "Recommends PSI analysis before extending"}
+      ]
+    }
+  ],
+  "edge_cases": [
+    {
+      "input": "All 50 features show PSI > 0.25 in the extension period. The data is from a completely different era.",
+      "expected_behavior": "Recommends NOT extending. Invokes bang-bang heuristic: either use all the data or none, and in this case none. Option B companion model on stable features only, or abandon extension entirely.",
+      "category": "scale_extreme_drift",
+      "assertions": [
+        {"type": "contains", "value": "bang-bang", "description": "Invokes bang-bang optimality principle"},
+        {"type": "excludes", "value": "safe to extend", "description": "Does not recommend extending"}
+      ]
+    },
+    {
+      "input": "The lookforward for our longest output is 12 months but we only have 8 months of extension data. The labels never fully mature.",
+      "expected_behavior": "Identifies that the extension period cannot produce valid labels for the longest-lookforward output. Extension may only benefit shorter-lookforward outputs.",
+      "category": "invalid_lookforward_exceeds_data",
+      "assertions": [
+        {"type": "contains", "value": "valid", "description": "Discusses label validity constraints"},
+        {"type": "contains", "value": "per-output", "description": "Recommends per-output analysis"}
+      ]
+    },
+    {
+      "input": "We use fillna(0) in both training and serving scripts. If we extend the window, do we need to change the serving script too?",
+      "expected_behavior": "Explains gated fillna logic for training. Notes that serving script may NOT need changes if all served data is post-tracking-launch. Warns about preprocessing parity.",
+      "category": "missing_fillna_interaction",
+      "assertions": [
+        {"type": "contains", "value": "gated", "description": "Recommends gated fillna approach"},
+        {"type": "contains", "value": "serving", "description": "Addresses serving script implications"}
+      ]
+    },
+    {
+      "input": "We extended the window and behavioral features now show lower feature importance. Is the extension hurting?",
+      "expected_behavior": "Explains dilution effect: behavioral features appear less important because pre-extension rows have NaN values. Recommends comparing importance on post-tracking subset alone.",
+      "category": "minimal_dilution_effect",
+      "assertions": [
+        {"type": "contains", "value": "dilution", "description": "Identifies the feature importance dilution effect"},
+        {"type": "pattern", "value": "subset|post.tracking", "description": "Recommends comparing on subset"}
+      ]
+    },
+    {
+      "input": "Our model retrains monthly with a rolling window. The extension just means moving start_date back. Do we need to re-run drift checks every month?",
+      "expected_behavior": "Yes, drift checks should be part of the retraining pipeline. As the window extends further back, older data may drift more.",
+      "category": "scale_rolling_window",
+      "assertions": [
+        {"type": "contains", "value": "drift", "description": "Recommends ongoing drift monitoring"},
+        {"type": "contains", "value": "retraining", "description": "Ties drift checks to retraining cycle"}
+      ]
+    },
+    {
+      "input": "The positive rate in extension period is 25% vs 10% in current period. Is this a problem?",
+      "expected_behavior": "Flags as a label distribution shift exceeding 5pp threshold. Could be genuine seasonal pattern or data quality issue. Requires investigation before extending.",
+      "category": "malformed_label_shift",
+      "assertions": [
+        {"type": "contains", "value": "shift", "description": "Identifies label distribution shift"},
+        {"type": "pattern", "value": "5.*percent|5pp|investigate", "description": "References the 5pp threshold for investigation"}
+      ]
+    },
+    {
+      "input": "We have zero positive labels in the extension period for the Summer output. Other outputs have labels.",
+      "expected_behavior": "Cannot extend training for Summer output. Extension only valid for outputs that have sufficient positive labels in the extension period.",
+      "category": "empty_no_labels",
+      "assertions": [
+        {"type": "contains", "value": "Summer", "description": "Addresses the specific output with no labels"},
+        {"type": "contains", "value": "per-output", "description": "Recommends per-output decision"}
+      ]
+    },
+    {
+      "input": "Our serving script uses sentinel value -1 for 'never occurred'. Training uses 999. Will extending the window make this worse?",
+      "expected_behavior": "Identifies sentinel mismatch as a train-serve skew risk. Recommends using 999 consistently and gating sentinels on data source availability date.",
+      "category": "dangerous_sentinel_mismatch",
+      "assertions": [
+        {"type": "contains", "value": "sentinel", "description": "Identifies sentinel value issue"},
+        {"type": "pattern", "value": "skew|mismatch|parity", "description": "Warns about train-serve preprocessing parity"}
+      ]
+    }
+  ]
+}
