@@ -181,7 +181,7 @@ The skill activates when:
 
 ## Acknowledgements
 
-Improved using [schliff](https://github.com/olelehmann/schliff) — an autonomous skill scoring and improvement framework (composite score: 56.8 → 89.7 across two improvement rounds).
+Improved using [schliff](https://github.com/Zandereins/schliff) — an autonomous skill scoring and improvement framework (composite score: 56.8 → 89.7 across two improvement rounds).
 
 ## License
 
