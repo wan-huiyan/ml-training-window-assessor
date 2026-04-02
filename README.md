@@ -174,15 +174,15 @@ The skill activates when:
 
 | Version | Changes |
 |---------|---------|
-| 3.0.0 | Progressive disclosure: extract pitfalls + drift code to `references/` (670 → 328 lines). Trigger recall 66.7% → 86.7%. Schliff composite: 83.6 → 89.7 |
-| 2.1.0 | Enrich trigger description, add eval suite, add composability metadata (schliff score: 56.8 → 83.6) |
+| 3.0.0 | Progressive disclosure: extract pitfalls + drift code to `references/` (670 → 328 lines). Trigger recall 66.7% → 86.7%. |
+| 2.1.0 | Enrich trigger description, add eval suite, add composability metadata |
 | 2.0.0 | Drift-aware validation (PSI, purged CV), XGBoost NaN routing research, bang-bang optimality, demo screenshots |
 | 1.1.0 | `.fillna(0)` pitfall, sentinel value interaction, preprocessing parity |
 | 1.0.0 | Initial release: per-output training months, lookforward bridging, Option A/B architecture |
 
 ## Acknowledgements
 
-Improved using [schliff](https://github.com/Zandereins/schliff) — an autonomous skill scoring and improvement framework (composite score: 56.8 → 89.7 across two improvement rounds).
+Improved using [schliff](https://github.com/Zandereins/schliff) — an autonomous skill scoring and improvement framework.
 
 ## License
 
