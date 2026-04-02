@@ -1,4 +1,5 @@
 # ML Training Window Assessor
+[![GitHub release](https://img.shields.io/github/v/release/wan-huiyan/ml-training-window-assessor)](https://github.com/wan-huiyan/ml-training-window-assessor/releases) [![Claude Code](https://img.shields.io/badge/Claude_Code-skill-orange)](https://claude.com/claude-code) [![license](https://img.shields.io/github/license/wan-huiyan/ml-training-window-assessor)](LICENSE) [![last commit](https://img.shields.io/github/last-commit/wan-huiyan/ml-training-window-assessor)](https://github.com/wan-huiyan/ml-training-window-assessor/commits)
 
 A [Claude Code](https://claude.com/claude-code) skill that answers "can we train on more data?" with a structured, drift-aware diagnostic — before you extend your training window and silently degrade your model.
 
