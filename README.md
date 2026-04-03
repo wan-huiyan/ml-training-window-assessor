@@ -95,6 +95,11 @@ Multi-output temporal models often have training windows that are shorter than t
 - **Temporal leakage from unpurged CV.** Standard `TimeSeriesSplit` allows leakage when samples have overlapping prediction-evaluation windows. The skill uses purged walk-forward CV with embargo ([De Prado 2018](https://www.wiley.com/en-us/Advances+in+Financial+Machine+Learning-p-9781119482086)).
 - **Sentinel value interactions.** A sentinel of `-1` for "never occurred" groups semantically wrong under tree threshold splits. The skill recommends `999` and gates sentinels on data source availability.
 
+## Requirements
+
+- Claude Code v1.0+
+- Python 3.9+, access to your ML training data and feature store
+
 ## Limitations
 
 - **Binary/multi-class classification focus.** Methodology assumes AUC-based evaluation. Regression targets need adapted metrics.
