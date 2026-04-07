@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "wan-huiyan-ml-training-window-assessor",
+  "description": "Single-plugin marketplace for ml-training-window-assessor — Drift-aware training window extension assessment for production ML pipelines.",
+  "owner": {
+    "name": "wan-huiyan"
+  },
+  "plugins": [
+    {
+      "name": "ml-training-window-assessor",
+      "source": "./plugins/ml-training-window-assessor",
+      "description": "Drift-aware training window extension assessment for production ML pipelines.",
+      "version": "2.1.0"
+    }
+  ]
+}

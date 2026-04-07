@@ -1,7 +1,7 @@
 {
   "name": "ml-training-window-assessor",
   "description": "Assess whether an ML training window can be extended by adding a new data source. Covers per-output label validity, lookforward bridging, drift-aware validation (PSI, feature-outcome stability), purged temporal cross-validation with embargo, bang-bang optimality under concept drift, and companion model vs extended training architecture decisions.",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "author": {
     "name": "Huiyan Wan"
   },
